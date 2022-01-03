@@ -1,0 +1,5 @@
+__pylache__/
+.ipynb_checkpoints/
+Models/
+runtime.err
+runtime.out
