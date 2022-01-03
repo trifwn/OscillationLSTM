@@ -1,4 +1,4 @@
-__pylache__/
+__pycache__/
 .ipynb_checkpoints/
 Models/
 runtime.err
