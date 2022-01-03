@@ -367,7 +367,7 @@ def call(self, inputs, training=None):
     x = self.l5(x) #FLATEN
     x = self.l6(x) #DENSE
     x = self.l7(x) #LEAKY RELU
-    prediction = Dense(1, activation='linear', use_bias=True)(x) #DENSE
+    prediction = self.l8(x) #DENSE
 
     predictions.append(prediction)
 
