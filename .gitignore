@@ -1,5 +1,6 @@
-__pycache__/
-.ipynb_checkpoints/
-Models/
+__pycache__
+.ipynb_checkpoints
+Models
 runtime.err
 runtime.out
+dataset*
