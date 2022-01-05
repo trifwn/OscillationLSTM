@@ -113,19 +113,23 @@ class WindowGenerator():
         plt.xlabel('Timesteps')
 
     def plot(self, inputs, model=None, plot_col='x'):
-        #inputs = train_df[:,index]
-        print(tf.shape(inputs))
+        # inputs = train_df[:,index]
         plt.figure(figsize=(12, 8))
         plt.subplot(1, 1, 1)
         plt.ylabel(f'{plot_col} [normed]')
         plt.plot(self.input_indices, inputs[:self.input_width],
                  label='Inputs', marker='.', zorder=-10)
-        print(self.label_indices)
         plt.scatter(self.label_indices, inputs[self.input_width:self.input_width+self.label_width],
                     edgecolors='k', label='Labels', c='#2ca02c', s=64)
 
         if model is not None:
-            predictions = model(inputs[:self.input_width])
+            predictions = model(
+                np.expand_dims(
+                    np.expand_dims(
+                        inputs[:self.input_width],
+                        0),
+                    2)
+            )
             plt.scatter(self.label_indices, predictions[:],
                         marker='X', edgecolors='k', label='Predictions',
                         c='#ff7f0e', s=64)
@@ -133,3 +137,4 @@ class WindowGenerator():
         plt.legend()
 
         plt.xlabel('Timesteps')
+    
