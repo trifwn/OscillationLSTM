@@ -1,18 +1,29 @@
+# %% [markdown]
 # # Imports
+
+# %%
 import os
 import time
+from datetime import datetime
+
 from threading import Thread
+import IPython
+import IPython.display
 
 import numpy as np
 from math import *
-from tensorflow.keras.layers import LSTM, LeakyReLU ,Flatten , Dense
 
 import tensorflow as tf
+from tensorflow.keras.layers import LSTM, LeakyReLU ,Flatten , Dense
+from tensorflow.keras.callbacks import TensorBoard, ModelCheckpoint
 
 import matplotlib.pyplot as plt
 from pltfigure import pltfigure
 
+# %%
+print(tf.__version__)
 
+# %%
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
     try:
@@ -26,11 +37,13 @@ if gpus:
         print(e)
 tf.test.is_built_with_cuda()
 
-
+# %%
 tf.executing_eagerly()
 
- 
+# %% [markdown]
 # # DATASET
+
+# %%
 #This is parameter space
 # m*x''+c*x'+mx = 0
 # => x'' + 2jwx' +w^2 x =0 , j = c/(2wm) , w = sqrt(k/m)
@@ -45,7 +58,7 @@ t = np.linspace(0.1, 100, 1000)
 inputData = np.array(np.meshgrid(w,z,x0,v0)).T.reshape(-1, 4)
 print(np.shape(inputData))
 
-
+# %%
 def finalsolution(W,Z,X0,V0,T):
     # final sol is x = e^(-zwt) (x0cos(wnt)+ ((v0+z*wn*x0)/wn)*sin(wnt)) wn = w sqrt(1-z**2)
     WN = W * np.sqrt(1-Z**2)
@@ -63,24 +76,26 @@ for case in inputData:
 Data = np.array(x)
 Data = np.swapaxes(Data,0,1)
 
-
+# %%
 plt.plot(t,Data[:,32])
 plt.grid()
 
-
+# %%
 zeroline = np.zeros((np.shape(x)[1],len(t)))
 print(np.shape(x),np.shape(zeroline))
 #pltfigure(zeroline,x,t,"Dataset","Zeroline",'dataset2.gif')
 
- 
+# %% [markdown]
 # # Split The Data
+
+# %% [markdown]
 # You'll use a (70%, 20%, 10%) split for the training, validation, and test sets. Note the data is not being randomly shuffled before splitting. This is for two reasons:
 # 
 #     It ensures that chopping the data into windows of consecutive samples is still possible.
 #     It ensures that the validation/test results are more realistic, being evaluated on the data collected after the model was trained.
 # 
 
-
+# %%
 n = Data.shape[1]
 train_df = Data[:, 0:int(n*0.7):]
 val_df = Data[:,int(n*0.7):int(n*0.9):]
@@ -88,7 +103,11 @@ test_df = Data[:,int(n*0.9):]
 
 num_features = Data.shape[1]
 
+
+# %% [markdown]
 # # Normalize Data
+
+# %%
 train_mean = train_df.mean()
 train_std = train_df.std()
 
@@ -96,11 +115,15 @@ train_df = (train_df - train_mean) / train_std
 val_df = (val_df - train_mean) / train_std
 test_df = (test_df - train_mean) / train_std
 
-
+# %%
 example_ind = 32
 plt.plot(t,train_df[:,example_ind])
 
+
+# %% [markdown]
 # # Data Windowing
+
+# %%
 class WindowGenerator():
   def __init__(self, input_width, label_width, shift,
                train_df=train_df, val_df=val_df, test_df=test_df):
@@ -173,7 +196,7 @@ class WindowGenerator():
 
     plt.xlabel('Timesteps')
 
-  def make_dataset(self, data):
+  def make_dataset(self, data,batch_size):
     data = np.array(data, dtype=np.float32)
 
     ds = tf.keras.preprocessing.timeseries_dataset_from_array(
@@ -182,21 +205,21 @@ class WindowGenerator():
         sequence_length=self.total_window_size,
         sequence_stride=1,
         shuffle=True,
-        batch_size=10)
+        batch_size=batch_size)
     ds = ds.map(self.split_window)
     return ds
 
   @property
-  def train(self):
-    return self.make_dataset(self.train_df)
+  def train(self,batch_size=10):
+    return self.make_dataset(self.train_df,batch_size)
 
   @property
-  def val(self):
-    return self.make_dataset(self.val_df)
+  def val(self,batch_size=10):
+    return self.make_dataset(self.val_df,batch_size)
 
   @property
-  def test(self):
-    return self.make_dataset(self.test_df)
+  def test(self,batch_size=10):
+    return self.make_dataset(self.test_df,batch_size)
 
   @property
   def example(self):
@@ -211,64 +234,61 @@ class WindowGenerator():
 
 
 
-
-w1 = WindowGenerator(input_width=30, label_width=1, shift=1)
-
+# %% [markdown]
 # ### Example of window
-w1 = WindowGenerator(input_width=30, label_width=1, shift=1)
-w1
 
- 
+# %%
+w1 = WindowGenerator(input_width=30, label_width=1, shift=1)
+# w1.plot(lstm_model)
+
+# %% [markdown]
 # ### Example of slicing
+
+# %%
 # Stack three slices, the length of the total window.
 example_window = tf.stack([np.array(train_df[:w1.total_window_size,:]),
                            np.array(train_df[100:100+w1.total_window_size,:]),
                            np.array(train_df[200:200+w1.total_window_size,:])])
 example_inputs, example_labels = w1.split_window(example_window)
 
-print('All shapes are: (batch, time,instances)')
-print(f'Window shape: {example_window.shape}')
+print('Shapes are: (batch, time, features)')
+print(f'Data shape: {example_window.shape}')
 print(f'Inputs shape: {example_inputs.shape}')
 print(f'Labels shape: {example_labels.shape}')
 
+# %% [markdown]
 # ### Create tf.data.Datasets
+
+# %%
 w1.train.element_spec
 
- 
-# ### Plot Example
+# %% [markdown]
+# ### Plot/Example
+
+# %%
+example_inputs, example_labels = w1.example
+print(f'Inputs shape (batch, timesteps,features): {example_inputs.shape}')
+print(f'Labels shape (batch, timesteps,features): {example_labels.shape}')
+
+
+# %%
 w1.plot()
 
+# %% [markdown]
+# # LSTM MODEL 1 TimeStep Train
 
-example_inputs, example_labels = w1.example
-print(f'Inputs shape (batch, timesteps): {example_inputs.shape}')
-print(f'Labels shape (batch, timesteps): {example_labels.shape}')
+# %%
+def compile_and_fit(model,name, window, patience=30,MAX_EPOCHS = 500):
 
+  now = datetime.now()
+  dt_string = now.strftime("%d-%m-%Y-%H:%M")
 
+  NAME = name +"@"+str(MAX_EPOCHS)+"@"+dt_string
+  filename = os.path.join("Models",  NAME +'.h5')
+  tensorboard = TensorBoard(log_dir="logs/{}".format(NAME))
 
-# # LSTM MODEL 1 Step Train
-lstm_model = tf.keras.models.Sequential([
-    # Shape [batch, time] => [batch, time, lstm_units]
-    tf.keras.layers.LSTM(101, activation='tanh', return_sequences=True,name = "LSTM1"),
-    tf.keras.layers.LeakyReLU(alpha=0.4,name = "LR1"),
-    tf.keras.layers.LSTM(101, activation='tanh', return_sequences=True,name = "LSTM2"),
-    tf.keras.layers.LeakyReLU(alpha=0.4,name = "LR2"),
-    tf.keras.layers.Flatten(name = "Flat"),
-    tf.keras.layers.Dense(101,activation=None, use_bias=True,name="Dense1"),
-    tf.keras.layers.LeakyReLU(alpha=0.4,name = "LR3"),
-    tf.keras.layers.Dense(units=1,name="Output")
-])
+  checkpoint = ModelCheckpoint(filename, monitor='val_loss', verbose=0, save_best_only=True,mode = 'min',save_weights_only=True)
 
-
-wide_window = WindowGenerator(
-    input_width=30, label_width=1, shift=1)
-
-print('Input shape:', wide_window.example[0].shape)
-print('Output shape:', lstm_model(wide_window.example[0]).shape)
-
-
-MAX_EPOCHS = 100
-
-def compile_and_fit(model, window, patience=10):
   early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                     patience=patience,
                                                     mode='min')
@@ -279,25 +299,50 @@ def compile_and_fit(model, window, patience=10):
 
   history = model.fit(window.train, epochs=MAX_EPOCHS,
                       validation_data=window.val,
-                      callbacks=[early_stopping])
+                      batch_size=16,
+                      callbacks=[early_stopping,tensorboard,checkpoint])
   return history
 
 val_performance = {}
 performance = {}
 
+# %%
+lstm_model = tf.keras.models.Sequential([
+    # Shape [batch, time] => [batch, time, lstm_units]
+    LSTM(256, activation='tanh', return_sequences=True,name = "LSTM1"),
+    LeakyReLU(alpha=0.4,name = "LR1"),
+    LSTM(256, activation='tanh', return_sequences=True,name = "LSTM2"),
+    LeakyReLU(alpha=0.4,name = "LR2"),
+    Flatten(name = "Flat"),
+    Dense(256,activation=None, use_bias=True,name="Dense1"),
+    LeakyReLU(alpha=0.4,name = "LR3"),
+    Dense(units=1,name="Output")
+])
 
-#time
-history = compile_and_fit(lstm_model, wide_window)
+# %%
+wide_window = WindowGenerator(
+    input_width=30, label_width=1, shift=1)
+
+print('Input shape:', wide_window.example[0].shape)
+print('Output shape:', lstm_model(wide_window.example[0]).shape)
+
+# %%
+%%time
+history = compile_and_fit(lstm_model, "LSTM_bigger",wide_window,patience = inf)
+
+IPython.display.clear_output()
 
 val_performance['LSTM'] = lstm_model.evaluate(wide_window.val)
 performance['LSTM'] = lstm_model.evaluate(wide_window.test, verbose=0)
 
-
+# %%
 wide_window.plot(lstm_model)
 
- 
+# %% [markdown]
 # # MULTIPLE WINDOW
-OUT_STEPS = 30
+
+# %%
+OUT_STEPS = 15
 multi_window = WindowGenerator(input_width=24,
                                label_width=OUT_STEPS,
                                shift=OUT_STEPS)
@@ -305,6 +350,7 @@ multi_window = WindowGenerator(input_width=24,
 multi_window.plot()
 multi_window
 
+# %%
 class FeedBack(tf.keras.Model):
   def __init__(self, units, out_steps):
     super().__init__()
@@ -320,74 +366,90 @@ class FeedBack(tf.keras.Model):
     self.l7 = LeakyReLU(alpha=0.4,name = "LR3")
     self.l8 = Dense(units=1,name="Output")
 
-feedback_model = FeedBack(units=32, out_steps=OUT_STEPS)
 
+
+# %%
+feedback_model = FeedBack(units=256, out_steps=OUT_STEPS)
+
+# %%
 def warmup(self, inputs):
-  
   inp = inputs                                 #Input        => inputs.shape      => (batch, time, features)
-  x, memory_state, carry_state1 = self.l1(inp) #LSTM 1       => x.shape           => (batch, timesteps,lstm_units)
+  x, *carry_state1 = self.l1(inp) #LSTM 1       => x.shape           => (batch, timesteps,lstm_units)
   x = self.l2(x)                               #LEAKY RELU 1 => x.shape           => (batch, timesteps,lstm_units)
-  x, memory_state, carry_state2  = self.l3(x)  #LSTM_2       => x.shape           => (batch, timesteps,lstm_units)
+  x, *carry_state2  = self.l3(x)  #LSTM_2       => x.shape           => (batch, timesteps,lstm_units)
   x = self.l4(x)                               #Leaky_ReLU_2 => x.shape           => (batch, timesteps,lstm_units)
   x = self.l5(x)                               #Flatten      => x.shape           => (batch, timesteps * lstm_units)
   x = self.l6(x)                               #Dense_1      => x.shape           => (batch, lstm_units)
   x = self.l7(x)                               #Leaky_ReLU_3 => x.shape           => (batch, lstm_units)
   prediction = self.l8(x)                      #Dense_2      => predictions.shape => (batch, 1)
-
+  
   return prediction , carry_state1 ,carry_state2
 
 FeedBack.warmup = warmup
 
-
+# %%
 prediction, state1, state2 = feedback_model.warmup(multi_window.example[0])
 print('Input shape:', multi_window.example[0].shape)
 print('Output shape:', prediction.shape)
 
-
+# %%
 def call(self, inputs, training=None):
   # Use a TensorArray to capture dynamically unrolled outputs.
-  predictions = []
+  predictions = inputs
   # Initialize the LSTM state.
-  inp = inputs
-  prediction, carry_state1, carry_state1 = self.warmup(inp)
-
+  prediction, carry_state1, carry_state2 = self.warmup(inputs)
   # Insert the first prediction.
-  predictions.append(prediction)
+  predictions = tf.concat(axis=1, values = [predictions,tf.expand_dims(prediction,axis=2)]) # <<<< note the cast
   # Run the rest of the prediction steps.
   for n in range(1, self.out_steps):
-
     # Use the last prediction as input.
-    inp = np.hstack((inp[:,1:,:],np.expand_dims(prediction,axis=2)))
-  
+    inp = predictions[:,n:,:]
     # Execute one lstm step.
-    x, memory_state, carry_state1 = self.l1(inp , states= carry_state1, training=training) #LSTM
+    x, *carry_state1 = self.l1(inp , initial_state= [*carry_state1],
+                                            training=training) #LSTM
     x = self.l2(x) #LEAKY RELU
-    x, memory_state, carry_state1 = self.l3(x, states=carry_state1, training=training) #LSTM
+    x, *carry_state2 = self.l3(x, initial_state= [*carry_state2], 
+                                            training=training) #LSTM
     x = self.l4(x) #LEAKY RELU
     x = self.l5(x) #FLATEN
-    x = self.l6(x) #DENSE
+    x = self.l6(x) #DENSE/
     x = self.l7(x) #LEAKY RELU
-    prediction = self.l8(x) #DENSE
+    prediction = self.l8(x) #DENSELOL
 
-    predictions.append(prediction)
+    predictions = tf.concat(axis=1, values = [predictions,tf.expand_dims(prediction,axis=2)]) # <<<< note the cast
 
   # predictions.shape => (time, batch, features)
-  predictions = tf.stack(predictions)
-  # predictions.shape => (batch, time, features)
-  predictions = tf.transpose(predictions, [1, 0, 2])
-  return predictions
+  return predictions[:,-OUT_STEPS:,:]
 
 FeedBack.call = call
 
+# %%
 print('Output shape (batch, time, features): ', feedback_model(multi_window.example[0]).shape)
+
+# %%
 multi_val_performance = {}
 multi_performance = {}
 
-#time
-history = compile_and_fit(feedback_model, multi_window)
+# %%
+multi_window.plot(feedback_model)
+
+# %%
+%%time
+history = compile_and_fit(feedback_model,
+                          name="LSTM_AR100_giannos",
+                          window =multi_window, 
+                          patience =50, 
+                          MAX_EPOCHS=500)
+
+IPython.display.clear_output()
 
 multi_val_performance['AR LSTM'] = feedback_model.evaluate(multi_window.val)
 multi_performance['AR LSTM'] = feedback_model.evaluate(multi_window.test, verbose=0)
+
+# %%
 multi_window.plot(feedback_model)
+
+# %%
+
 
 
