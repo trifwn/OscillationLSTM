@@ -4,5 +4,6 @@ Models
 logs
 runtime.err
 runtime.out
-dataset*
 Data
+dataset.*
+Graphs
