@@ -4,8 +4,8 @@ from pltfigure import pltfigure
 #This is parameter space
 # m*x''+c*x'+mx = 0
 # => x'' + 2jwx' +w^2 x =0 , j = c/(2wm) , w = sqrt(k/m)
-w = np.linspace(0.01, 1, 10)
-z = np.linspace(0.01, 0.99, 10)
+w = np.linspace(0.01, 1, 100)
+z = np.linspace(0.01, 0.99, 100)
 x0 = 1
 v0 = 0
 

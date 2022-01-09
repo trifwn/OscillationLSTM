@@ -1,6 +1,7 @@
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
+from profiling import simple_timer
 
 
 class WindowGenerator():
@@ -52,7 +53,7 @@ class WindowGenerator():
         labels.set_shape([None, self.label_width, 1])
 
         return inputs, labels
-
+    
     def make_dataset(self, data, batch_size):
         data = np.array(data, dtype=np.float32)
 
@@ -67,15 +68,15 @@ class WindowGenerator():
         return ds
 
     @property
-    def train(self, batch_size=10):
+    def train(self, batch_size=5):
         return self.make_dataset(self.train_df, batch_size)
 
     @property
-    def val(self, batch_size=10):
+    def val(self, batch_size=5):
         return self.make_dataset(self.val_df, batch_size)
 
     @property
-    def test(self, batch_size=10):
+    def test(self, batch_size=5):
         return self.make_dataset(self.test_df, batch_size)
 
     @property
