@@ -5,9 +5,9 @@ from pltfigure import pltfigure
 # m*x''+c*x'+mx = 0
 # => x'' + 2jwx' +w^2 x =0 , j = c/(2wm) , w = sqrt(k/m)
 w = np.linspace(0.01, 1, 100)
-z = np.linspace(0.01, 0.99, 100)
-x0 = 1
-v0 = 0
+z = 0
+x0 = np.linspace(0.01, 1, 10)
+v0 = 1
 
 t = np.linspace(0.1, 100, 1000)
 
@@ -40,4 +40,4 @@ np.savetxt("Data/InputData.csv",inputData,delimiter=",")
 
 zeroline = np.zeros((np.shape(Data)[1],len(t)))
 print(np.shape(Data.T),np.shape(zeroline))
-#pltfigure(zeroline,Data.T,t,"Dataset","Zeroline",'datasetSMALL.gif')
+pltfigure(zeroline,Data.T,t,"Dataset","Zeroline",'singleFreq.gif')

@@ -6,11 +6,13 @@ from profiling import simple_timer
 
 class WindowGenerator():
     def __init__(self, input_width, label_width, shift,
-                 train_df, val_df, test_df):
+                 train_df, val_df, test_df,batch_size):
         # Store the raw data.
         self.train_df = train_df
         self.val_df = val_df
         self.test_df = test_df
+        self.batch_size = batch_size
+
 
         # Work out the window parameters.
         self.input_width = input_width
@@ -53,7 +55,7 @@ class WindowGenerator():
         labels.set_shape([None, self.label_width, 1])
 
         return inputs, labels
-    
+
     def make_dataset(self, data, batch_size):
         data = np.array(data, dtype=np.float32)
 
@@ -63,21 +65,22 @@ class WindowGenerator():
             sequence_length=self.total_window_size,
             sequence_stride=1,
             shuffle=True,
-            batch_size=batch_size)
+            batch_size=5)
         ds = ds.map(self.split_window)
+        ds = ds.unbatch().batch(batch_size)
         return ds
 
     @property
-    def train(self, batch_size=5):
-        return self.make_dataset(self.train_df, batch_size)
+    def train(self):
+        return self.make_dataset(self.train_df, self.batch_size)
 
     @property
-    def val(self, batch_size=5):
-        return self.make_dataset(self.val_df, batch_size)
+    def val(self, batch_size=1000):
+        return self.make_dataset(self.val_df, self.batch_size)
 
     @property
-    def test(self, batch_size=5):
-        return self.make_dataset(self.test_df, batch_size)
+    def test(self, batch_size=1000):
+        return self.make_dataset(self.test_df, self.batch_size)
 
     @property
     def example(self):
@@ -113,29 +116,61 @@ class WindowGenerator():
 
         plt.xlabel('Timesteps')
 
-    def plot(self, inputs, model=None, plot_col='x'):
+    def CalcCase(self, data, timesteps, model):
+        inputsRT = data[:self.input_width]
+        outputsRT = data[:self.input_width]
+        
+        iw = self.input_width
+        shift = self.shift
+        i=0
+        while(iw+shift*i-1<timesteps.shape[0]):
+            predRT = np.squeeze(model(np.reshape(inputsRT, (1, inputsRT.shape[0], 1))))
+            outputsRT = np.hstack([outputsRT, predRT])
+            inputsRT = outputsRT[-iw:]
+            i+=1
+        print("We had to execute {} calls\nPredicted {} timesteps".format(i,np.shape(outputsRT[iw:])[0]))
+        return  outputsRT
+
+        
+
+    def plotCase(self, data, timesteps, model=None, plot_col='x'):
         # inputs = train_df[:,index]
+        inputsRT = data[:self.input_width]
+        outputsRT = data[:self.input_width]
+
+        
+        iw = self.input_width
+        shift = self.shift
+        i=0
+        
         plt.figure(figsize=(12, 8))
         plt.subplot(1, 1, 1)
         plt.ylabel(f'{plot_col} [normed]')
-        plt.plot(self.input_indices, inputs[:self.input_width],
+        plt.plot(self.input_indices, data[:self.input_width],
                  label='Inputs', marker='.', zorder=-10)
-        plt.scatter(self.label_indices, inputs[self.input_width:self.input_width+self.label_width],
-                    edgecolors='k', label='Labels', c='#2ca02c', s=64)
+
+        while(iw+shift*(i+1)<timesteps.shape[0]):
+            label_indeces_new = [z+shift*i for z in self.label_indices]
+            plt.scatter(label_indeces_new, data[label_indeces_new],
+                        edgecolors='k', label='Labels', c='#2ca02c', s=64)
+
+            if model is not None:
+                predRT = np.squeeze(model(np.reshape(inputsRT, (1, inputsRT.shape[0], 1))))
+                outputsRT = np.hstack([outputsRT, predRT])
+                inputsRT = outputsRT[-iw:]
+
+                plt.scatter(label_indeces_new, predRT,
+                            marker='X', edgecolors='k', label='Predictions',
+                            c='#ff7f0e', s=64)
+            i+=1
 
         if model is not None:
-            predictions = model(
-                np.expand_dims(
-                    np.expand_dims(
-                        inputs[:self.input_width],
-                        0),
-                    2)
-            )
-            plt.scatter(self.label_indices, predictions[:],
-                        marker='X', edgecolors='k', label='Predictions',
-                        c='#ff7f0e', s=64)
-
-        plt.legend()
+            plt.legend(["input","target",'Predictions'])
+        else:
+            plt.legend(["input","target"])
+            return None  
 
         plt.xlabel('Timesteps')
-    
+        plt.show()      
+        return  outputsRT
+
