@@ -2,6 +2,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
 from profiling import simple_timer
+from pltfigure import pltfigure
 
 
 class WindowGenerator():
@@ -106,7 +107,7 @@ class WindowGenerator():
                         edgecolors='k', label='Labels', c='#2ca02c', s=64)
 
             if model is not None:
-                predictions = model(inputs)
+                predictions  = model(inputs)
                 plt.scatter(self.label_indices, predictions[n, :],
                             marker='X', edgecolors='k', label='Predictions',
                             c='#ff7f0e', s=64)
@@ -116,24 +117,23 @@ class WindowGenerator():
 
         plt.xlabel('Timesteps')
 
-    def CalcCase(self, data, timesteps, model):
+    def CalcCase(self, data, timesteps, model,verbose = False):
         inputsRT = data[:self.input_width]
         outputsRT = data[:self.input_width]
         
         iw = self.input_width
         shift = self.shift
         i=0
-        while(iw+shift*i-1<timesteps.shape[0]):
+        while(iw+shift*(i+1)<=timesteps.shape[0]):
             predRT = np.squeeze(model(np.reshape(inputsRT, (1, inputsRT.shape[0], 1))))
             outputsRT = np.hstack([outputsRT, predRT])
             inputsRT = outputsRT[-iw:]
             i+=1
-        print("We had to execute {} calls\nPredicted {} timesteps".format(i,np.shape(outputsRT[iw:])[0]))
+        if verbose ==True:
+            print("We had to execute {} calls\nPredicted {} timesteps".format(i,np.shape(outputsRT[iw:])[0]))
         return  outputsRT
-
-        
-
-    def plotCase(self, data, timesteps, model=None, plot_col='x'):
+ 
+    def plotCase(self, data, timesteps, model=None, options = {"showLines" : True,  "yLabel" :'x', "xLabel" :'Timesteps'}):
         # inputs = train_df[:,index]
         inputsRT = data[:self.input_width]
         outputsRT = data[:self.input_width]
@@ -145,11 +145,11 @@ class WindowGenerator():
         
         plt.figure(figsize=(12, 8))
         plt.subplot(1, 1, 1)
-        plt.ylabel(f'{plot_col} [normed]')
+        plt.ylabel(f'{options["yLabel"]} [normed]')
         plt.plot(self.input_indices, data[:self.input_width],
                  label='Inputs', marker='.', zorder=-10)
 
-        while(iw+shift*(i+1)<timesteps.shape[0]):
+        while(iw+shift*(i+1)<=timesteps.shape[0]):
             label_indeces_new = [z+shift*i for z in self.label_indices]
             plt.scatter(label_indeces_new, data[label_indeces_new],
                         edgecolors='k', label='Labels', c='#2ca02c', s=64)
@@ -163,6 +163,7 @@ class WindowGenerator():
                             marker='X', edgecolors='k', label='Predictions',
                             c='#ff7f0e', s=64)
             i+=1
+            plt.axvline(x=label_indeces_new[0],label='_nolegend_')
 
         if model is not None:
             plt.legend(["input","target",'Predictions'])
@@ -171,6 +172,33 @@ class WindowGenerator():
             return None  
 
         plt.xlabel('Timesteps')
+        plt.xlim(left=0)
         plt.show()      
         return  outputsRT
 
+    # def animate(self, dataset, timesteps,skipping=0, model=None, plot_col='x'):
+    #     # data = train_df[:,index]
+    #     DATA = []
+    #     for data in dataset.T:
+    #         inputsRT = data[:self.input_width]
+    #         outputsRT = data[:self.input_width]
+            
+    #         iw = self.input_width
+    #         shift = self.shift
+    #         i=0
+    #         if model is not None:
+    #             while(iw+shift*(i+1)<timesteps.shape[0]):
+    #                 predRT = np.squeeze(model(np.reshape(inputsRT, (1, inputsRT.shape[0], 1))))
+    #                 outputsRT = np.hstack([outputsRT, predRT])
+    #                 inputsRT = outputsRT[-iw:]
+    #                 i+=1
+    #             DATA.append(outputsRT)
+    #         else:
+    #             zeros =  np.zeros((len(timesteps)))
+    #             DATA.append(zeros)
+    #     DATA = np.array(DATA)
+    #     print(np.shape(dataset),np.shape(DATA))
+    #     if model is not None:
+    #         pltfigure(dataset,DATA,timesteps,"Prediction","Target",f"outcome_{model.name}")
+    #     else:
+    #         pltfigure(dataset,DATA,timesteps,"Prediction","Target",f"Dataset")

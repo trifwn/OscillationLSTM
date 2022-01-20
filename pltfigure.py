@@ -24,7 +24,9 @@ def pltfigure(x1,x2,T,name1,name2,savename):
         line.set_ydata(x1[i,:])
         line2.set_xdata(T)
         line2.set_ydata(x2[i,:])
-        ax.set_ylim(-np.max(x2[i,:]),np.max(x2[i,:]))
+        maximum = max(np.max(x1[i,:]),np.max(x2[i,:]))
+        minimum = min(np.min(x1[i,:]),np.min(x2[i,:]))
+        ax.set_ylim(1.1*minimum,1.1*maximum)            
         return line, line2
 
 
