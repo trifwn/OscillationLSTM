@@ -1,2 +1,5 @@
-# OscillationLSTM
-Oscillation prediction with LSTM
+# TimeSeries Analysis
+Windowing System
+Input Pipeline
+Network Builder with Autoregressive Option
+Oscillation prediction with LSTM and more
