@@ -1,5 +1,3 @@
-from audioop import add
-from curses import meta
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
@@ -100,11 +98,11 @@ class WindowGenerator():
         return self.make_dataset(self.train_df, added_data=self.md_train_df,batch_size= self.batch_size)
 
     @property
-    def val(self, batch_size=1000):
+    def val(self):
         return self.make_dataset(self.val_df, added_data=self.md_val_df,batch_size= self.batch_size)
 
     @property
-    def test(self, batch_size=1000):
+    def test(self):
         return self.make_dataset(self.test_df, added_data=self.md_test_df,batch_size= self.batch_size)
 
     @property
@@ -205,29 +203,153 @@ class WindowGenerator():
         plt.show()      
         return  outputsRT
 
-    # def animate(self, dataset, timesteps,skipping=0, model=None, plot_col='x'):
-    #     # data = train_df[:,index]
-    #     DATA = []
-    #     for data in dataset.T:
-    #         inputsRT = data[:self.input_width]
-    #         outputsRT = data[:self.input_width]
+"""    
+    def animate(self, dataset, timesteps,skipping=0, model=None, plot_col='x'):
+        # data = train_df[:,index]
+        DATA = []
+        for data in dataset.T:
+            inputsRT = data[:self.input_width]
+            outputsRT = data[:self.input_width]
             
-    #         iw = self.input_width
-    #         shift = self.shift
-    #         i=0
-    #         if model is not None:
-    #             while(iw+shift*(i+1)<timesteps.shape[0]):
-    #                 predRT = np.squeeze(model(np.reshape(inputsRT, (1, inputsRT.shape[0], 1))))
-    #                 outputsRT = np.hstack([outputsRT, predRT])
-    #                 inputsRT = outputsRT[-iw:]
-    #                 i+=1
-    #             DATA.append(outputsRT)
-    #         else:
-    #             zeros =  np.zeros((len(timesteps)))
-    #             DATA.append(zeros)
-    #     DATA = np.array(DATA)
-    #     print(np.shape(dataset),np.shape(DATA))
-    #     if model is not None:
-    #         pltfigure(dataset,DATA,timesteps,"Prediction","Target",f"outcome_{model.name}")
-    #     else:
-    #         pltfigure(dataset,DATA,timesteps,"Prediction","Target",f"Dataset")
+            iw = self.input_width
+            shift = self.shift
+            i=0
+            if model is not None:
+                while(iw+shift*(i+1)<timesteps.shape[0]):
+                    predRT = np.squeeze(model(np.reshape(inputsRT, (1, inputsRT.shape[0], 1))))
+                    outputsRT = np.hstack([outputsRT, predRT])
+                    inputsRT = outputsRT[-iw:]
+                    i+=1
+                DATA.append(outputsRT)
+            else:
+                zeros =  np.zeros((len(timesteps)))
+                DATA.append(zeros)
+        DATA = np.array(DATA)
+        print(np.shape(dataset),np.shape(DATA))
+        if model is not None:
+            pltfigure(dataset,DATA,timesteps,"Prediction","Target",f"outcome_{model.name}")
+        else:
+            pltfigure(dataset,DATA,timesteps,"Prediction","Target",f"Dataset")"""
+
+class DataPipeline():
+    def __init__(self,Data,Metadata):
+        self.Data = Data
+        self.Metadata = Metadata
+        self.num_cases = Data.shape[1]
+    
+    def splitData(self,trainpercentage=0.8,validationpercentage=0.1,testpercentage=0.1):
+
+        trainslice = slice(0,int(trainpercentage*self.num_cases))
+        valslice = slice(int(trainpercentage*self.num_cases),int((trainpercentage+validationpercentage)*self.num_cases))
+        testslice = slice(int((trainpercentage+validationpercentage)*self.num_cases),self.num_cases)
+        self.train_df = self.Data[:, trainslice]
+        self.meta_train_df = self.Metadata.T[:, trainslice]
+
+        self.val_df = self.Data[:,valslice]
+        self.meta_val_df = self.Metadata.T[:,valslice]
+
+        self.test_df = self.Data[:,testslice]
+        self.meta_test_df = self.Metadata.T[:,testslice]
+
+    def normalizeData(self):
+        train_mean = self.train_df.mean()
+        train_std = self.train_df.std()
+
+        self.train_df = (self.train_df - train_mean) / train_std
+        self.val_df = (self.val_df - train_mean) / train_std
+        self.test_df = (self.test_df - train_mean) / train_std
+
+
+
+'''SIMPLE PIPELINE NO TENSORFLOW'''
+
+class SimplePipeline():
+    def __init__(self, num_samples, n_steps,xshape,val_cases,use_metadata=True):
+        self.num_samples = num_samples
+        self.n_steps = n_steps
+        self.xshape = xshape
+        self.use_metadata = use_metadata
+        self.val_cases = val_cases
+
+    def split_sequence(self,sequence):
+        X, y = list(), list()
+        for i in range(len(sequence)):
+            # find the end of this pattern
+            end_ix = i + self.n_steps
+            # check if we are beyond the sequence
+            if end_ix > len(sequence) - 1:
+                break
+            # gather input and output parts of the pattern
+            seq_x, seq_y = sequence[i:end_ix], sequence[end_ix]
+            X.append(seq_x)
+            y.append(seq_y)
+        return X, y
+
+    def makeData(self,data,metadata):
+        if self.use_metadata:
+            x_inp = np.zeros((int((self.xshape - self.n_steps) * self.num_samples), self.n_steps + 6))
+        else:
+            x_inp = np.zeros((int((self.xshape - self.n_steps) * self.num_samples), self.n_steps))
+        y_out = np.zeros((int((self.xshape - self.n_steps) * self.num_samples)))
+        n_samp = int((self.xshape - self.n_steps))
+
+        for n in range(data.shape[0]):
+            if self.use_metadata:
+                a = metadata[n,:]
+                x_inp[n * n_samp:(n + 1) * n_samp, :self.n_steps], y_out[n * n_samp:(n + 1) * n_samp] = self.split_sequence(data[n, :])
+                x_inp[n * n_samp:(n + 1) * n_samp, self.n_steps:] = a
+            else:
+                x_inp[n * n_samp:(n + 1) * n_samp, :], y_out[n * n_samp:(n + 1) * n_samp] = self.split_sequence(data[n, :])
+        return x_inp, y_out
+
+    def plotAlldata(self,data,x):
+        for n in range(data.shape[0]):
+            plt.plot(x, data[n, :])
+        plt.grid()
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.show()
+
+    def split_data(self,x_inp, y_out):
+        x_inp_train = x_inp[:-self.val_cases * self.num_samples, :]
+        y_out_train = y_out[:-self.val_cases * self.num_samples]
+        x_inp_val = x_inp[-self.val_cases * self.num_samples:, :]
+        y_out_val = y_out[-self.val_cases * self.num_samples:]
+        return x_inp_train, y_out_train, x_inp_val, y_out_val
+
+
+'''
+Replacing This code with the above code
+x = np.linspace(0., 160., num=xshape)
+data = np.zeros((num_samples, xshape))
+if use_a:
+    x_inp = np.zeros((int((xshape - n_steps) * num_samples), n_steps + 6))
+else:
+    x_inp = np.zeros((int((xshape - n_steps) * num_samples), n_steps))
+y_out = np.zeros((int((xshape - n_steps) * num_samples)))
+n_pat = int((xshape - n_steps) * num_samples)
+n_samp = int((xshape - n_steps))
+np.random.seed(1)
+for n in range(num_samples):
+    a1 = np.random.rand(1)
+    a2 = np.random.rand(1)
+    a3 = np.random.rand(1)
+    a4 = np.random.rand(1)
+    a5 = np.random.rand(1)
+    a6 = np.random.rand(1)
+    data[n, :] = a4 * np.sin(a1 * x) + a5 * np.cos(a2 * x) + np.sin(a3 * x) + a6
+    if use_a:
+        a = np.array([a1, a2, a3, a4, a5, a6])
+        metadata.append(a)
+        a_tile = np.transpose(np.tile(a, n_samp))
+        x_inp[n * n_samp:(n + 1) * n_samp, :n_steps], y_out[n * n_samp:(n + 1) * n_samp] = split_sequence(data[n, :],
+                                                                                                          n_steps)
+        x_inp[n * n_samp:(n + 1) * n_samp, -6:] = a_tile
+    else:
+        x_inp[n * n_samp:(n + 1) * n_samp, :], y_out[n * n_samp:(n + 1) * n_samp] = split_sequence(data[n, :], n_steps)
+    plt.plot(x, data[n, :])
+plt.grid()
+plt.xlabel("x")
+plt.ylabel("y")
+plt.show()
+metadata = np.squeeze(np.array(metadata))'''        

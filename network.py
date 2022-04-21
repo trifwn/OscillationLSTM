@@ -27,13 +27,11 @@ class lstm_benchmark_model(tf.keras.models.Sequential):
         self.add(Dense(units=1,activation = "linear" ,name="Output"))
     
 class FeedBack(lstm_model):
-    def __init__(self, units, out_steps,metadata = False):
+    def __init__(self, units, out_steps):
         super().__init__(units = units,return_states = True)
         self.out_steps = out_steps
         self.units = units
-        self.metadata = metadata
  
-
 
     def warmup(self, inputs):
         x = inputs         
