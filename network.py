@@ -4,7 +4,7 @@ from tensorflow.keras.layers import LSTM, LeakyReLU ,Flatten , Dense, Dropout
 import numpy as np
 
 class lstm_model(tf.keras.models.Sequential):
-    def __init__(self,units =101,return_states = False,metadata = True):
+    def __init__(self,units =64,return_states = False,metadata = True):
         self.metadata = metadata
         super().__init__()   
         self.add(LSTM(units, activation='tanh', return_sequences=True,return_state=return_states,name = "LSTM1"))
@@ -26,7 +26,7 @@ class lstm_benchmark_model(tf.keras.models.Sequential):
         self.add(LeakyReLU(alpha=0.3,name="LR2"))
         self.add(Dense(units=1,activation = "linear" ,name="Output"))
     
-class FeedBack(lstm_model):
+class FeedBack(lstm_benchmark_model):
     def __init__(self, units, out_steps):
         super().__init__(units = units,return_states = True)
         self.out_steps = out_steps
