@@ -66,7 +66,10 @@ class WindowGenerator():
 
     def add_metadata(self,metadata,data):
         (inputs ,labels )= data
-        return  (metadata , inputs) , labels
+        metadata = tf.expand_dims(metadata,axis=-1)
+        metadata = metadata[:tf.shape(inputs)[0],:,:]
+        inputs = tf.concat([inputs,metadata],axis=1)
+        return  inputs , labels
 
     def make_dataset(self, data, added_data = None, batch_size = 10):
         data = np.array(data, dtype=np.float32)
@@ -82,14 +85,13 @@ class WindowGenerator():
         ds = ds.unbatch().batch(batch_size)
         
         if self.md_train_df is not None:
-        # try:
-            # added_data = np.repeat(added_data, data.shape[0],axis=1)
-            ds2 = tf.data.Dataset.from_tensor_slices(added_data.T).repeat(-1)
-            ds2 = ds2.batch(batch_size)
-            ds = tf.data.Dataset.zip((ds2,ds))
-            ds = ds.map(self.add_metadata)
-        else:
-            print("No added data")
+            try:
+                ds2 = tf.data.Dataset.from_tensor_slices(added_data.T).repeat(-1)
+                ds2 = ds2.batch(batch_size)
+                ds = tf.data.Dataset.zip((ds2,ds))
+                ds = ds.map(self.add_metadata)
+            except:
+                print("No added data")
         return ds
     
  
@@ -117,16 +119,14 @@ class WindowGenerator():
         return result
 
     def plotexample(self, model=None, plot_col='x', max_subplots=3):
-        if self.md_train_df is not None:
-            (metadata, inputs), labels = self.example
-        else:
-            inputs, labels = self.example
+        """Plot a single example batch of `inputs, labels`."""
+        inputs, labels = self.example
         plt.figure(figsize=(12, 8))
         max_n = min(max_subplots, len(inputs))
         for n in range(max_n):
             plt.subplot(max_n, 1, n+1)
             plt.ylabel(f'{plot_col} [normed]')
-            plt.plot(self.input_indices, inputs[n, :, :],
+            plt.plot(self.input_indices, inputs[n, self.input_slice, :],
                      label='Inputs', marker='.', zorder=-10)
             plt.scatter(self.label_indices, labels[n, :, :],
                         edgecolors='k', label='Labels', c='#2ca02c', s=64)
@@ -158,11 +158,13 @@ class WindowGenerator():
             print("We had to execute {} calls\nPredicted {} timesteps".format(i,np.shape(outputsRT[iw:])[0]))
         return  outputsRT
  
-    def plotCase(self, data, timesteps, model=None, options = {"showLines" : True,  "yLabel" :'x', "xLabel" :'Timesteps'}):
+    def plotCase(self, data, timesteps,metadata=None, model=None, options = {"showLines" : True,  "yLabel" :'x', "xLabel" :'Timesteps'}):
         # inputs = train_df[:,index]
         inputsRT = data[:self.input_width]
         outputsRT = data[:self.input_width]
 
+        if metadata is not None:
+            inputsRT = np.hstack([inputsRT,metadata])
         
         iw = self.input_width
         shift = self.shift
@@ -183,12 +185,14 @@ class WindowGenerator():
                 predRT = np.squeeze(model(np.reshape(inputsRT, (1, inputsRT.shape[0], 1))))
                 outputsRT = np.hstack([outputsRT, predRT])
                 inputsRT = outputsRT[-iw:]
-
+                if metadata is not None:
+                    inputsRT = np.hstack([inputsRT,metadata])
                 plt.scatter(label_indeces_new, predRT,
                             marker='X', edgecolors='k', label='Predictions',
                             c='#ff7f0e', s=64)
             i+=1
-            plt.axvline(x=label_indeces_new[0],label='_nolegend_')
+            if options["showLines"] == True:
+                plt.axvline(x=label_indeces_new[0],label='_nolegend_')
 
         if model is not None:
             plt.legend(["input","target",'Predictions'])

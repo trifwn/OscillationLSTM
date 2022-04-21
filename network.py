@@ -13,14 +13,7 @@ class lstm_model(tf.keras.models.Sequential):
         self.add(Dense(units,activation=None, use_bias=True,name="Dense1"))
         self.add(Dense(units=1,activation = "linear" ,name="Output"))
 
-    def __call__(self,data):
-        if self.metadata == True:
-            mdata,data= data
-            mdata = tf.expand_dims(mdata,axis=-1)
-            data = tf.concat([data,mdata],axis=1)
-            return super().__call__(data)
-        else:
-            return super().__call__(data)
+
 class lstm_benchmark_model(tf.keras.models.Sequential):
     def __init__(self,units =64,return_states = False):
         super().__init__()       
@@ -57,12 +50,7 @@ class FeedBack(lstm_model):
         
         if out_steps is None:
           out_steps = self.out_steps
-
-        if self.metadata == True:
-            mdata,data= inputs
-            mdata = tf.expand_dims(mdata,axis=-1)
-            inputs = tf.concat([data,mdata],axis=1)     
-
+  
         # Use a TensorArray to capture dynamically unrolled outputs.
         predictions = tf.cast(inputs,dtype=tf.float32)
 
