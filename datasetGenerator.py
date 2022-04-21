@@ -40,4 +40,4 @@ np.savetxt("Data/InputData1.csv",inputData,delimiter=",")
 
 zeroline = np.zeros((np.shape(Data)[1],len(t)))
 print(np.shape(Data.T),np.shape(zeroline))
-pltfigure(zeroline,Data.T,t,"Dataset","Zeroline",'singleFreq.gif')
+pltfigure(zeroline,Data.T,t,"Dataset","Zeroline",'Graphs/singleFreq.gif')

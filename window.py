@@ -1,3 +1,5 @@
+from audioop import add
+from curses import meta
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,13 +9,18 @@ from pltfigure import pltfigure
 
 class WindowGenerator():
     def __init__(self, input_width, label_width, shift,
-                 train_df, val_df, test_df,batch_size):
+                 train_df, val_df, test_df,batch_size,
+                 md_train_df = None, md_test_df = None,md_val_df = None):
         # Store the raw data.
         self.train_df = train_df
         self.val_df = val_df
         self.test_df = test_df
         self.batch_size = batch_size
 
+        #Store Metadata
+        self.md_train_df = md_train_df
+        self.md_test_df = md_test_df
+        self.md_val_df = md_val_df
 
         # Work out the window parameters.
         self.input_width = input_width
@@ -57,31 +64,46 @@ class WindowGenerator():
 
         return inputs, labels
 
-    def make_dataset(self, data, batch_size):
-        data = np.array(data, dtype=np.float32)
+    def add_metadata(self,metadata,data):
+        (inputs ,labels )= data
+        return  (metadata , inputs) , labels
 
+    def make_dataset(self, data, added_data = None, batch_size = 10):
+        data = np.array(data, dtype=np.float32)
+        added_data = np.array(added_data, dtype=np.float32)
         ds = tf.keras.preprocessing.timeseries_dataset_from_array(
             data=data,
             targets=None,
             sequence_length=self.total_window_size,
             sequence_stride=1,
             shuffle=True,
-            batch_size=5)
+            batch_size=1) # Change Batch size for efficiency
         ds = ds.map(self.split_window)
         ds = ds.unbatch().batch(batch_size)
+        
+        if self.md_train_df is not None:
+        # try:
+            # added_data = np.repeat(added_data, data.shape[0],axis=1)
+            ds2 = tf.data.Dataset.from_tensor_slices(added_data.T).repeat(-1)
+            ds2 = ds2.batch(batch_size)
+            ds = tf.data.Dataset.zip((ds2,ds))
+            ds = ds.map(self.add_metadata)
+        else:
+            print("No added data")
         return ds
-
+    
+ 
     @property
     def train(self):
-        return self.make_dataset(self.train_df, self.batch_size)
+        return self.make_dataset(self.train_df, added_data=self.md_train_df,batch_size= self.batch_size)
 
     @property
     def val(self, batch_size=1000):
-        return self.make_dataset(self.val_df, self.batch_size)
+        return self.make_dataset(self.val_df, added_data=self.md_val_df,batch_size= self.batch_size)
 
     @property
     def test(self, batch_size=1000):
-        return self.make_dataset(self.test_df, self.batch_size)
+        return self.make_dataset(self.test_df, added_data=self.md_test_df,batch_size= self.batch_size)
 
     @property
     def example(self):
@@ -95,7 +117,10 @@ class WindowGenerator():
         return result
 
     def plotexample(self, model=None, plot_col='x', max_subplots=3):
-        inputs, labels = self.example
+        if self.md_train_df is not None:
+            (metadata, inputs), labels = self.example
+        else:
+            inputs, labels = self.example
         plt.figure(figsize=(12, 8))
         max_n = min(max_subplots, len(inputs))
         for n in range(max_n):

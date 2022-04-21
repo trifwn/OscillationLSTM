@@ -8,3 +8,6 @@ Data
 dataset.*
 Graphs
 .vscode
+Res
+Thesis_Elastic
+debugDatasetGenerator.py
