@@ -311,10 +311,11 @@ class SimplePipeline():
         plt.show()
 
     def split_data(self,x_inp, y_out):
-        x_inp_train = x_inp[:-self.val_cases * self.num_samples, :]
-        y_out_train = y_out[:-self.val_cases * self.num_samples]
-        x_inp_val = x_inp[-self.val_cases * self.num_samples:, :]
-        y_out_val = y_out[-self.val_cases * self.num_samples:]
+        split = (self.num_samples - self.val_cases)/self.num_samples
+        x_inp_train = x_inp[:int(split*x_inp.shape[0]),:]
+        y_out_train = y_out[:int(split*y_out.shape[0])]
+        x_inp_val = x_inp[int(split*x_inp.shape[0]):,:]
+        y_out_val = y_out[int(split*y_out.shape[0]):]
         return x_inp_train, y_out_train, x_inp_val, y_out_val
 
 
