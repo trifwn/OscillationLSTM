@@ -1,9 +1,10 @@
+import enum
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
 from profiling import simple_timer
 from pltfigure import pltfigure
-
+from alive_progress import alive_bar
 
 class WindowGenerator():
     def __init__(self, input_width, label_width, shift,
@@ -140,9 +141,13 @@ class WindowGenerator():
 
         plt.xlabel('Timesteps')
 
-    def CalcCase(self, data, timesteps, model,verbose = False):
-        inputsRT = data[:self.input_width]
-        outputsRT = data[:self.input_width]
+    def CalcCase(self, data,  timesteps, model,metadata =None,verbose = False):
+        if metadata == None:
+            inputsRT = data[:self.input_width]
+            outputsRT = data[:self.input_width]
+        else:
+            inputsRT = np.hstack((data[:self.input_width],metadata))
+            outputsRT = data[:self.input_width]
         
         iw = self.input_width
         shift = self.shift
@@ -150,7 +155,10 @@ class WindowGenerator():
         while(iw+shift*(i+1)<=timesteps.shape[0]):
             predRT = np.squeeze(model(np.reshape(inputsRT, (1, inputsRT.shape[0], 1))))
             outputsRT = np.hstack([outputsRT, predRT])
-            inputsRT = outputsRT[-iw:]
+            if metadata == None:
+                inputsRT = outputsRT[-iw:]
+            else:
+                inputsRT = np.hstack((outputsRT[-iw:],metadata))
             i+=1
         if verbose ==True:
             print("We had to execute {} calls\nPredicted {} timesteps".format(i,np.shape(outputsRT[iw:])[0]))
@@ -178,7 +186,6 @@ class WindowGenerator():
             label_indeces_new = [z+shift*i for z in self.label_indices]
             plt.scatter(label_indeces_new, data[label_indeces_new],
                         edgecolors='k', label='Labels', c='#2ca02c', s=64)
-
             if model is not None:
                 predRT = np.squeeze(model(np.reshape(inputsRT, (1, inputsRT.shape[0], 1))))
                 outputsRT = np.hstack([outputsRT, predRT])
@@ -259,6 +266,20 @@ class DataPipeline():
         self.val_df = (self.val_df - train_mean) / train_std
         self.test_df = (self.test_df - train_mean) / train_std
 
+    @property
+    def example(self):
+        """Get and cache an example batch of `inputs, labels` for plotting."""
+        result = getattr(self, '_example', None)
+        if result is None:
+            # No example batch was found, so get one from the `.train` dataset
+            data = self.train_df[:, 0]
+            mdata = self.meta_train_df[:, 0]
+            print(data.shape,mdata.shape)
+            result = np.hstack([data,mdata])
+            # And cache it for next time
+            self._example = result
+        return result
+
 
 
 '''SIMPLE PIPELINE NO TENSORFLOW'''
@@ -318,7 +339,30 @@ class SimplePipeline():
         y_out_val = y_out[int(split*y_out.shape[0]):]
         return x_inp_train, y_out_train, x_inp_val, y_out_val
 
+    def predCase(self,xinp,yinp,model):
+        y_out_pred = np.zeros_like(yinp)
+        with alive_bar(xinp.shape[0]) as bar:
+            for i in range(xinp.shape[0]):
+                temp = np.squeeze(model.predict(np.expand_dims(xinp[i, :], axis=0)))
+                y_out_pred[i] = temp
+                # print(i, i % (pipe.num_samples - 1))
+                if (i + 1) % (self.xshape-self.n_steps) == 0:
+                    pass
+                else:
+                    xinp[i + 1,-7] = temp
+                bar()
+        return y_out_pred
 
+    def predCaseRT(self,x,model):
+        y = list()
+        with alive_bar(self.xshape-self.n_steps) as bar:
+            for i in range(self.xshape-self.n_steps):
+                temp = model.predict(np.expand_dims(x, axis=0))
+                y.append(np.squeeze(temp))
+                print(x.shape)
+                x = np.vstack((x[1:-6,:],temp,x[-6:,:]))
+                bar(i)
+        return np.array(y)
 '''
 Replacing This code with the above code
 x = np.linspace(0., 160., num=xshape)
